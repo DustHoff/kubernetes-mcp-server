@@ -46,6 +46,46 @@ async function startStdio(): Promise<void> {
   process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION} started\n`);
 }
 
+async function handleHttpRequest(
+  transport: { handleRequest(req: http.IncomingMessage, res: http.ServerResponse, body?: unknown): Promise<void> },
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+): Promise<void> {
+  const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+
+  if (pathname === "/mcp") {
+    if (req.method === "POST") {
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", resolve);
+        req.on("error", reject);
+      });
+      const body = Buffer.concat(chunks).toString();
+      let parsed: unknown;
+      try {
+        parsed = body ? JSON.parse(body) : undefined;
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON body" }));
+        return;
+      }
+      await transport.handleRequest(req, res, parsed);
+    } else if (req.method === "GET" || req.method === "DELETE") {
+      await transport.handleRequest(req, res);
+    } else {
+      res.writeHead(405);
+      res.end("Method Not Allowed");
+    }
+  } else if (pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+  } else {
+    res.writeHead(404);
+    res.end("Not Found");
+  }
+}
+
 async function startHttp(): Promise<void> {
   const { StreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/streamableHttp.js"
@@ -58,36 +98,19 @@ async function startHttp(): Promise<void> {
   const server = createServer();
   await server.connect(transport);
 
-  const httpServer = http.createServer(async (req, res) => {
-    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
-
-    if (pathname === "/mcp") {
-      if (req.method === "POST") {
-        const chunks: Buffer[] = [];
-        req.on("data", (chunk: Buffer) => chunks.push(chunk));
-        req.on("end", async () => {
-          try {
-            const body = Buffer.concat(chunks).toString();
-            const parsed = body ? JSON.parse(body) : undefined;
-            await transport.handleRequest(req, res, parsed);
-          } catch {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Invalid JSON body" }));
-          }
-        });
-      } else if (req.method === "GET" || req.method === "DELETE") {
-        await transport.handleRequest(req, res);
-      } else {
-        res.writeHead(405);
-        res.end("Method Not Allowed");
+  const httpServer = http.createServer((req, res) => {
+    handleHttpRequest(transport, req, res).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[ERROR] request handler failed: ${message}\n`);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Internal server error" }));
       }
-    } else if (pathname === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-    } else {
-      res.writeHead(404);
-      res.end("Not Found");
-    }
+    });
+  });
+
+  httpServer.on("error", (err) => {
+    process.stderr.write(`[ERROR] http server error: ${err.message}\n`);
   });
 
   httpServer.listen(port, () => {
