@@ -3,6 +3,13 @@ name: Auto Tag
 # Runs on every merge to master. Bumps the patch version of the latest
 # semantic version tag and pushes the new tag, which then triggers the
 # Docker build-and-push job in build.yml.
+#
+# IMPORTANT: the tag push MUST use a Personal Access Token (PAT) stored as
+# the repository secret GH_PAT. GitHub blocks workflows triggered by the
+# default GITHUB_TOKEN from firing further workflows, so using GITHUB_TOKEN
+# here would silently prevent build.yml from running on the new tag.
+# Create a PAT with "Contents: Read and write" scope and add it as GH_PAT:
+#   Repository → Settings → Secrets and variables → Actions → New secret
 on:
   push:
     branches:
@@ -21,6 +28,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Use PAT so the subsequent tag push triggers downstream workflows.
+          token: ${{ secrets.GH_PAT }}
 
       - name: Compute next semantic version
         id: next_tag
