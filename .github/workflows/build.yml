@@ -38,7 +38,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -75,7 +75,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run tests
         run: npm test
@@ -89,7 +89,12 @@ jobs:
           retention-days: 7
 
   # ──────────────────────────────────────────
-  # Job 3: Docker – build always, push only on tag
+  # Job 3: Docker
+  #
+  # Steps:
+  #   1. Build amd64 image locally (fast, no QEMU)
+  #   2. Smoke-test: verify the server starts correctly
+  #   3. On version tag: build multi-platform (amd64 + arm64) and push to ghcr.io
   # ──────────────────────────────────────────
   docker:
     name: Docker Build & Push
@@ -104,7 +109,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Step 1: build amd64 image locally for the smoke test ──────────────
+      - name: Build local amd64 image (smoke test)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: smoke-test:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Step 2: smoke test ────────────────────────────────────────────────
+      # The MCP server prints "<name> vX.Y.Z started" to stderr on startup,
+      # then blocks on stdin. Closing stdin (empty echo) triggers a clean exit.
+      # We capture stderr, assert the startup line is present, and enforce a
+      # 15-second timeout so the job never hangs.
+      - name: Smoke test – verify server starts
+        run: |
+          OUTPUT=$(echo "" | timeout 15 docker run --rm -i smoke-test:latest 2>&1 || true)
+          echo "--- container output ---"
+          echo "$OUTPUT"
+          echo "------------------------"
+          echo "$OUTPUT" | grep -q "started" \
+            && echo "✓ Smoke test passed" \
+            || (echo "✗ Smoke test failed – 'started' not found in output" && exit 1)
+
+      # ── Step 3 (tag only): multi-platform build + push ────────────────────
       - name: Extract Docker metadata
+        if: startsWith(github.ref, 'refs/tags/v')
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -114,13 +151,10 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-,format=short
 
-      - name: Set up QEMU (multi-platform builds)
+      - name: Set up QEMU (ARM64 emulation)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Login only when pushing (= on a version tag)
       - name: Log in to GitHub Container Registry
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/login-action@v3
@@ -129,21 +163,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Docker image
-        id: docker_push
+      - name: Build and push multi-platform image (amd64 + arm64)
         if: startsWith(github.ref, 'refs/tags/v')
+        id: docker_push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -156,4 +178,7 @@ jobs:
 
       - name: Image digest
         if: startsWith(github.ref, 'refs/tags/v')
-        run: echo "Pushed ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} digest ${{ steps.docker_push.outputs.digest }}"
+        run: |
+          echo "Pushed ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Digest: ${{ steps.docker_push.outputs.digest }}"
+          echo "Tags:   ${{ steps.meta.outputs.tags }}"
