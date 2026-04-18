@@ -18,6 +18,10 @@ import { runSelfCheck } from "./k8s/selfcheck.js";
 const SERVER_NAME = "kubernetes-mcp-server";
 const SERVER_VERSION = "0.1.0";
 
+const accessLogEnabled =
+  process.env.ACCESS_LOG === undefined ||
+  (process.env.ACCESS_LOG.toLowerCase() !== "false" && process.env.ACCESS_LOG !== "0");
+
 function createServer(): Server {
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -150,10 +154,6 @@ async function startHttp(): Promise<void> {
     void runSelfCheck();
   });
 }
-
-const accessLogEnabled =
-  process.env.ACCESS_LOG === undefined ||
-  (process.env.ACCESS_LOG.toLowerCase() !== "false" && process.env.ACCESS_LOG !== "0");
 
 const mode = process.env.MCP_TRANSPORT ?? "stdio";
 
