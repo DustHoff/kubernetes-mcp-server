@@ -1,6 +1,7 @@
 import { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { objectApi } from "../k8s/client.js";
+import { k8sAudit } from "../k8s/audit.js";
 
 // ── list_resources ────────────────────────────────────────────────────────────
 
@@ -51,15 +52,10 @@ export async function handleListResources(
   const { kind, apiVersion, namespace, labelSelector, fieldSelector } =
     ListResourcesArgsSchema.parse(args);
 
-  const res = await objectApi.list(
-    apiVersion,
-    kind,
-    namespace,
-    undefined,
-    undefined,
-    undefined,
-    fieldSelector,
-    labelSelector
+  const res = await k8sAudit(
+    "list",
+    { kind, apiVersion, ...(namespace && { namespace }), ...(labelSelector && { labelSelector }), ...(fieldSelector && { fieldSelector }) },
+    () => objectApi.list(apiVersion, kind, namespace, undefined, undefined, undefined, fieldSelector, labelSelector)
   );
 
   return {
@@ -106,7 +102,11 @@ export async function handleGetResource(
   const { kind, apiVersion, name, namespace } =
     GetResourceArgsSchema.parse(args);
 
-  const res = await objectApi.read({ apiVersion, kind, metadata: { name, namespace: namespace ?? "" } });
+  const res = await k8sAudit(
+    "read",
+    { kind, apiVersion, name, ...(namespace && { namespace }) },
+    () => objectApi.read({ apiVersion, kind, metadata: { name, namespace: namespace ?? "" } })
+  );
 
   return {
     content: [{ type: "text", text: JSON.stringify(res.body, null, 2) }],
@@ -141,7 +141,11 @@ export async function handleCreateResource(
   const { manifest } = CreateResourceArgsSchema.parse(args);
   const spec = JSON.parse(manifest);
 
-  const res = await objectApi.create(spec);
+  const res = await k8sAudit(
+    "create",
+    { kind: spec.kind as string, apiVersion: spec.apiVersion as string, name: (spec.metadata as { name?: string })?.name },
+    () => objectApi.create(spec)
+  );
 
   return {
     content: [{ type: "text", text: JSON.stringify(res.body, null, 2) }],
@@ -177,7 +181,11 @@ export async function handleUpdateResource(
   const { manifest } = UpdateResourceArgsSchema.parse(args);
   const spec = JSON.parse(manifest);
 
-  const res = await objectApi.replace(spec);
+  const res = await k8sAudit(
+    "replace",
+    { kind: spec.kind as string, apiVersion: spec.apiVersion as string, name: (spec.metadata as { name?: string })?.name },
+    () => objectApi.replace(spec)
+  );
 
   return {
     content: [{ type: "text", text: JSON.stringify(res.body, null, 2) }],
@@ -231,13 +239,10 @@ export async function handlePatchResource(
     ...JSON.parse(patch),
   };
 
-  const res = await objectApi.patch(
-    spec,
-    undefined,
-    undefined,
-    "kubernetes-mcp",
-    undefined,
-    { headers: { "Content-Type": "application/merge-patch+json" } }
+  const res = await k8sAudit(
+    "patch",
+    { kind, apiVersion, name, ...(namespace && { namespace }) },
+    () => objectApi.patch(spec, undefined, undefined, "kubernetes-mcp", undefined, { headers: { "Content-Type": "application/merge-patch+json" } })
   );
 
   return {
@@ -278,7 +283,11 @@ export async function handleDeleteResource(
   const { kind, apiVersion, name, namespace } =
     DeleteResourceArgsSchema.parse(args);
 
-  await objectApi.delete({ apiVersion, kind, metadata: { name, namespace: namespace ?? "" } });
+  await k8sAudit(
+    "delete",
+    { kind, apiVersion, name, ...(namespace && { namespace }) },
+    () => objectApi.delete({ apiVersion, kind, metadata: { name, namespace: namespace ?? "" } })
+  );
 
   return {
     content: [

@@ -1,6 +1,7 @@
 import { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { appsV1Api } from "../k8s/client.js";
+import { k8sAudit } from "../k8s/audit.js";
 
 // ── list_deployments ─────────────────────────────────────────────────────────
 
@@ -35,13 +36,10 @@ export async function handleListDeployments(
   // v0.x positional params:
   // listNamespacedDeployment(namespace, pretty, allowWatchBookmarks, _continue,
   //                          fieldSelector, labelSelector, ...)
-  const res = await appsV1Api.listNamespacedDeployment(
-    namespace,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    labelSelector
+  const res = await k8sAudit(
+    "listNamespacedDeployment",
+    { namespace, ...(labelSelector && { labelSelector }) },
+    () => appsV1Api.listNamespacedDeployment(namespace, undefined, undefined, undefined, undefined, labelSelector)
   );
 
   const deployments = res.body.items.map((d) => ({
@@ -99,16 +97,20 @@ export async function handleScaleDeployment(
 
   // v0.21.x: patchNamespacedDeploymentScale(name, namespace, body,
   //   pretty, dryRun, fieldManager, fieldValidation, force, options)
-  await appsV1Api.patchNamespacedDeploymentScale(
-    name,
-    namespace,
-    { spec: { replicas } },
-    undefined, // pretty
-    undefined, // dryRun
-    undefined, // fieldManager
-    undefined, // fieldValidation
-    undefined, // force
-    { headers: { "Content-Type": "application/merge-patch+json" } }
+  await k8sAudit(
+    "patchNamespacedDeploymentScale",
+    { name, namespace, replicas },
+    () => appsV1Api.patchNamespacedDeploymentScale(
+      name,
+      namespace,
+      { spec: { replicas } },
+      undefined, // pretty
+      undefined, // dryRun
+      undefined, // fieldManager
+      undefined, // fieldValidation
+      undefined, // force
+      { headers: { "Content-Type": "application/merge-patch+json" } }
+    )
   );
 
   return {

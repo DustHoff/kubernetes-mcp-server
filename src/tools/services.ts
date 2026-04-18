@@ -1,6 +1,7 @@
 import { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { coreV1Api } from "../k8s/client.js";
+import { k8sAudit } from "../k8s/audit.js";
 
 const ListServicesArgsSchema = z.object({
   namespace: z.string().optional().default("default"),
@@ -33,13 +34,10 @@ export async function handleListServices(
   // v0.x positional params:
   // listNamespacedService(namespace, pretty, allowWatchBookmarks, _continue,
   //                       fieldSelector, labelSelector, ...)
-  const res = await coreV1Api.listNamespacedService(
-    namespace,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    labelSelector
+  const res = await k8sAudit(
+    "listNamespacedService",
+    { namespace, ...(labelSelector && { labelSelector }) },
+    () => coreV1Api.listNamespacedService(namespace, undefined, undefined, undefined, undefined, labelSelector)
   );
 
   const services = res.body.items.map((svc) => ({
