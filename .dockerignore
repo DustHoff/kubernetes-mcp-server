@@ -1,0 +1,28 @@
+# Version control
+.git
+.gitignore
+
+# Build output (rebuilt inside Docker)
+dist/
+
+# Dependencies (reinstalled inside Docker)
+node_modules/
+
+# CI / tooling
+.github/
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*
+
+# Docs
+README.md
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
