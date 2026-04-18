@@ -3,24 +3,25 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
+  // Global ignores
   {
+    ignores: ["dist/**", "node_modules/**"],
+  },
+  // Base rules applied to all TypeScript source files
+  {
+    files: ["src/**/*.ts"],
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.recommended,
+    ],
     rules: {
-      // Disallow unused variables, except those prefixed with _
+      // Allow variables prefixed with _ to be unused
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
-      // Require explicit return types on exported functions
-      "@typescript-eslint/explicit-module-boundary-types": "warn",
-      // Disallow explicit `any`
+      // Warn on explicit any
       "@typescript-eslint/no-explicit-any": "warn",
     },
-  },
-  {
-    // Only lint source files
-    files: ["src/**/*.ts"],
-    ignores: ["dist/**", "node_modules/**"],
   }
 );
