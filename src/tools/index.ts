@@ -1,4 +1,5 @@
 import { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { logger } from "../logger.js";
 
 import { listNamespacesTool, handleListNamespaces } from "./namespaces.js";
 import { listPodsTool, handleListPods, getPodLogsTool, handleGetPodLogs } from "./pods.js";
@@ -50,6 +51,29 @@ export const tools: Tool[] = [
  * Dispatches a tool call to the matching handler.
  */
 export async function handleToolCall(
+  name: string,
+  args: Record<string, unknown>
+): Promise<CallToolResult> {
+  logger.debug("tool call", { tool: name, args });
+  try {
+    const result = await dispatch(name, args);
+    if (result.isError) {
+      logger.warn("tool returned error", { tool: name });
+    } else {
+      logger.debug("tool call succeeded", { tool: name });
+    }
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("tool call failed", { tool: name, error: message });
+    return {
+      isError: true,
+      content: [{ type: "text", text: `Internal error: ${message}` }],
+    };
+  }
+}
+
+async function dispatch(
   name: string,
   args: Record<string, unknown>
 ): Promise<CallToolResult> {

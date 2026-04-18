@@ -12,6 +12,8 @@ import {
 
 import { tools, handleToolCall } from "./tools/index.js";
 import { resources, readResource } from "./resources/index.js";
+import { logger } from "./logger.js";
+import { runSelfCheck } from "./k8s/selfcheck.js";
 
 const SERVER_NAME = "kubernetes-mcp-server";
 const SERVER_VERSION = "0.1.0";
@@ -43,7 +45,8 @@ async function startStdio(): Promise<void> {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION} started\n`);
+  logger.info("server started", { name: SERVER_NAME, version: SERVER_VERSION, transport: "stdio" });
+  await runSelfCheck();
 }
 
 async function startHttp(): Promise<void> {
@@ -91,20 +94,21 @@ async function startHttp(): Promise<void> {
   });
 
   httpServer.listen(port, () => {
-    process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION} started on port ${port}\n`);
+    logger.info("server started", { name: SERVER_NAME, version: SERVER_VERSION, transport: "http", port });
+    void runSelfCheck();
   });
 }
 
 const mode = process.env.MCP_TRANSPORT ?? "stdio";
 
 if (mode === "http") {
-  startHttp().catch((error) => {
-    console.error("Fatal error:", error);
+  startHttp().catch((error: unknown) => {
+    logger.error("fatal error", { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   });
 } else {
-  startStdio().catch((error) => {
-    console.error("Fatal error:", error);
+  startStdio().catch((error: unknown) => {
+    logger.error("fatal error", { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   });
 }
