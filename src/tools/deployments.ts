@@ -97,16 +97,17 @@ export async function handleScaleDeployment(
 ): Promise<CallToolResult> {
   const { name, namespace, replicas } = ScaleDeploymentArgsSchema.parse(args);
 
-  // v0.x: patchNamespacedDeploymentScale(name, namespace, body,
-  //          pretty, dryRun, fieldManager, force, options)
+  // v0.21.x: patchNamespacedDeploymentScale(name, namespace, body,
+  //   pretty, dryRun, fieldManager, fieldValidation, force, options)
   await appsV1Api.patchNamespacedDeploymentScale(
     name,
     namespace,
     { spec: { replicas } },
-    undefined,
-    undefined,
-    undefined,
-    undefined,
+    undefined, // pretty
+    undefined, // dryRun
+    undefined, // fieldManager
+    undefined, // fieldValidation
+    undefined, // force
     { headers: { "Content-Type": "application/merge-patch+json" } }
   );
 
