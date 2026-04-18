@@ -11,6 +11,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 | `list_namespaces` | List all namespaces in the cluster |
 | `list_pods` | List pods in a namespace, with optional label selector |
 | `get_pod_logs` | Retrieve logs from a pod container |
+| `exec_in_pod` | Execute a command inside a running pod container |
 | `list_deployments` | List Deployments in a namespace |
 | `scale_deployment` | Scale a Deployment to a desired replica count |
 | `list_services` | List Services in a namespace |
@@ -79,8 +80,8 @@ metadata:
 rules:
   # Core resources
   - apiGroups: [""]
-    resources: ["namespaces", "pods", "pods/log", "services"]
-    verbs: ["get", "list", "watch"]
+    resources: ["namespaces", "pods", "pods/log", "pods/exec", "services"]
+    verbs: ["get", "list", "watch", "create"]
   # Apps resources
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
@@ -218,6 +219,7 @@ src/
 │   ├── index.ts          # Tool registry & dispatcher
 │   ├── namespaces.ts     # list_namespaces
 │   ├── pods.ts           # list_pods, get_pod_logs
+│   ├── exec.ts           # exec_in_pod
 │   ├── deployments.ts    # list_deployments, scale_deployment
 │   └── services.ts       # list_services
 └── resources/

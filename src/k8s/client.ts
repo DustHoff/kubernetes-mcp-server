@@ -24,7 +24,7 @@ function buildKubeConfig(): k8s.KubeConfig {
   return kc;
 }
 
-const kubeConfig = buildKubeConfig();
+export const kubeConfig = buildKubeConfig();
 
 /** Core API – Pods, Namespaces, Services, … */
 export const coreV1Api = kubeConfig.makeApiClient(k8s.CoreV1Api);

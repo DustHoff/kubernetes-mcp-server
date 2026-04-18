@@ -1,7 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getTextContent } from "./helpers.js";
 
+const { MockExecClass } = vi.hoisted(() => {
+  const MockExecClass = vi.fn(() => ({
+    exec: vi.fn((...args: unknown[]) => {
+      const statusCb = args[8] as (s: { status: string }) => void;
+      process.nextTick(() => statusCb({ status: "Success" }));
+      return Promise.resolve();
+    }),
+  }));
+  return { MockExecClass };
+});
+
+vi.mock("@kubernetes/client-node", () => ({
+  Exec: MockExecClass,
+}));
+
 vi.mock("../../k8s/client.js", () => ({
+  kubeConfig: {},
   coreV1Api: {
     listNamespace: vi.fn(),
     listNamespacedPod: vi.fn(),
@@ -24,6 +40,7 @@ describe("Tool registry", () => {
     expect(names).toContain("list_namespaces");
     expect(names).toContain("list_pods");
     expect(names).toContain("get_pod_logs");
+    expect(names).toContain("exec_in_pod");
     expect(names).toContain("list_deployments");
     expect(names).toContain("scale_deployment");
     expect(names).toContain("list_services");
