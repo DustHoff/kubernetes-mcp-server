@@ -25,10 +25,10 @@ RUN node_modules/.bin/tsc
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 – Production dependencies
-# Fresh `npm ci --omit=dev` on the *target* platform so npm picks the correct
-# platform-native optional packages (none needed here, but future-proof).
+# All production deps (kubernetes client, MCP SDK, zod) are pure JS with no
+# native addons, so installing on the build host is safe for any target arch.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
 
 WORKDIR /app
 
