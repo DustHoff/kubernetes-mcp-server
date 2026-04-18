@@ -17,6 +17,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@kubernetes/client-node": "^0.21.0",
     "@modelcontextprotocol/sdk": "^1.10.2",
     "zod": "^3.24.2"
   },
