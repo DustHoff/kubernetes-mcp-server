@@ -7,7 +7,7 @@
 # Pure-JS packages like `typescript` and `@modelcontextprotocol/sdk` work
 # correctly without postinstall scripts.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 WORKDIR /app
 
