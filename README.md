@@ -75,6 +75,7 @@ All behaviour is controlled via environment variables. Variables marked **set by
 |---|---|---|---|
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN`, `ERROR` | Minimum severity for structured JSON log output on stderr. `DEBUG` additionally logs per-request details (headers, query parameters, request body) and per-tool-call traces. `WARN` and `ERROR` reduce output to warnings and failures only. |
 | `ACCESS_LOG` | `true` | `true`, `false`, `0` | Controls HTTP access logging. When enabled, every HTTP request is logged at INFO level with method, path, response status, and duration in milliseconds. Set to `false` or `0` to disable. Has no effect in `stdio` mode. |
+| `K8S_AUDIT_LOG` | `true` | `true`, `false`, `0` | Controls Kubernetes API audit logging. When enabled, every call to the Kubernetes API is logged at INFO level with the operation name, resource kind, namespace, name, and duration in milliseconds. Errors are logged at ERROR level with the error message. Set to `false` or `0` to disable. |
 
 ### Kubernetes (set by cluster)
 
@@ -267,6 +268,7 @@ src/
 ├── logger.ts             # Structured JSON logger (stderr, LOG_LEVEL)
 ├── k8s/
 │   ├── client.ts         # Kubernetes API client (in-cluster / kubeconfig)
+│   ├── audit.ts          # Kubernetes API audit logging wrapper (K8S_AUDIT_LOG)
 │   └── selfcheck.ts      # Startup self-check (endpoint, credentials, API)
 ├── tools/
 │   ├── index.ts          # Tool registry & dispatcher

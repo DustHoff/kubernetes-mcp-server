@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Writable } from "stream";
 import * as k8s from "@kubernetes/client-node";
 import { kubeConfig } from "../k8s/client.js";
+import { k8sAudit } from "../k8s/audit.js";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -86,42 +87,46 @@ export async function handleExecInPod(
   const stdout = makeCollector();
   const stderr = makeCollector();
 
-  await new Promise<void>((resolve, reject) => {
-    // Enforce a hard timeout so the tool never hangs indefinitely
-    const timer = setTimeout(() => {
-      reject(new Error(`Command timed out after ${timeoutSeconds}s`));
-    }, timeoutSeconds * 1000);
+  await k8sAudit(
+    "execInPod",
+    { namespace, name, ...(container && { container }), command: commandArray.join(" ") },
+    () => new Promise<void>((resolve, reject) => {
+      // Enforce a hard timeout so the tool never hangs indefinitely
+      const timer = setTimeout(() => {
+        reject(new Error(`Command timed out after ${timeoutSeconds}s`));
+      }, timeoutSeconds * 1000);
 
-    exec
-      .exec(
-        namespace,
-        name,
-        container ?? "",   // empty string = let the API pick the default container
-        commandArray,
-        stdout.writable,
-        stderr.writable,
-        null,              // no stdin
-        false,             // no tty
-        (status: k8s.V1Status) => {
-          clearTimeout(timer);
-          if (status.status === "Success") {
-            resolve();
-          } else {
-            // Kubernetes reports non-zero exits via status.message
-            reject(
-              new Error(
-                status.message ??
-                  `Command exited with status: ${status.reason ?? "Unknown"}`
-              )
-            );
+      exec
+        .exec(
+          namespace,
+          name,
+          container ?? "",   // empty string = let the API pick the default container
+          commandArray,
+          stdout.writable,
+          stderr.writable,
+          null,              // no stdin
+          false,             // no tty
+          (status: k8s.V1Status) => {
+            clearTimeout(timer);
+            if (status.status === "Success") {
+              resolve();
+            } else {
+              // Kubernetes reports non-zero exits via status.message
+              reject(
+                new Error(
+                  status.message ??
+                    `Command exited with status: ${status.reason ?? "Unknown"}`
+                )
+              );
+            }
           }
-        }
-      )
-      .catch((err: Error) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
+        )
+        .catch((err: Error) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    })
+  );
 
   const stdoutText = stdout.output();
   const stderrText = stderr.output();

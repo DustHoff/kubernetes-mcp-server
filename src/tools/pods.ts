@@ -1,6 +1,7 @@
 import { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { coreV1Api } from "../k8s/client.js";
+import { k8sAudit } from "../k8s/audit.js";
 
 // ── list_pods ────────────────────────────────────────────────────────────────
 
@@ -35,13 +36,10 @@ export async function handleListPods(
   // v0.x positional params:
   // listNamespacedPod(namespace, pretty, allowWatchBookmarks, _continue,
   //                   fieldSelector, labelSelector, ...)
-  const res = await coreV1Api.listNamespacedPod(
-    namespace,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    labelSelector
+  const res = await k8sAudit(
+    "listNamespacedPod",
+    { namespace, ...(labelSelector && { labelSelector }) },
+    () => coreV1Api.listNamespacedPod(namespace, undefined, undefined, undefined, undefined, labelSelector)
   );
 
   const pods = res.body.items.map((pod) => ({
@@ -113,17 +111,10 @@ export async function handleGetPodLogs(
   // v0.x positional params:
   // readNamespacedPodLog(name, namespace, container, follow, insecureSkipTLSVerifyBackend,
   //                      limitBytes, pretty, previous, sinceSeconds, tailLines, timestamps)
-  const res = await coreV1Api.readNamespacedPodLog(
-    name,
-    namespace,
-    container,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    previous,
-    undefined,
-    tailLines
+  const res = await k8sAudit(
+    "readNamespacedPodLog",
+    { name, namespace, ...(container && { container }), tailLines, previous },
+    () => coreV1Api.readNamespacedPodLog(name, namespace, container, undefined, undefined, undefined, undefined, previous, undefined, tailLines)
   );
 
   return {
