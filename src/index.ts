@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -129,8 +130,8 @@ async function startHttp(): Promise<void> {
 
   const port = parseInt(process.env.MCP_PORT ?? "3000", 10);
 
-  // Stateless mode: each POST is handled independently; no session tracking needed.
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  // Session tracking: each initialize request gets a unique session ID, required for SSE streaming.
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
   const server = createServer();
   await server.connect(transport);
 
