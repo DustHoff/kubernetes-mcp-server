@@ -9,6 +9,7 @@ import {
   handleScaleDeployment,
 } from "./deployments.js";
 import { listServicesTool, handleListServices } from "./services.js";
+import { execInPodTool, handleExecInPod } from "./exec.js";
 
 /**
  * All tools exposed by this MCP server.
@@ -17,6 +18,7 @@ export const tools: Tool[] = [
   listNamespacesTool,
   listPodsTool,
   getPodLogsTool,
+  execInPodTool,
   listDeploymentsTool,
   scaleDeploymentTool,
   listServicesTool,
@@ -36,6 +38,8 @@ export async function handleToolCall(
       return handleListPods(args);
     case "get_pod_logs":
       return handleGetPodLogs(args);
+    case "exec_in_pod":
+      return handleExecInPod(args);
     case "list_deployments":
       return handleListDeployments(args);
     case "scale_deployment":
