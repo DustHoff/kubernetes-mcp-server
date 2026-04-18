@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import http from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -15,54 +16,95 @@ import { resources, readResource } from "./resources/index.js";
 const SERVER_NAME = "kubernetes-mcp-server";
 const SERVER_VERSION = "0.1.0";
 
-/**
- * Kubernetes MCP Server
- *
- * Provides tools and resources for Kubernetes cluster management
- * via the Model Context Protocol (MCP).
- */
-async function main(): Promise<void> {
+function createServer(): Server {
   const server = new Server(
-    {
-      name: SERVER_NAME,
-      version: SERVER_VERSION,
-    },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-      },
-    }
+    { name: SERVER_NAME, version: SERVER_VERSION },
+    { capabilities: { tools: {}, resources: {} } }
   );
 
-  // --- Tool Handlers ---
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools };
-  });
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     return handleToolCall(name, args ?? {});
   });
 
-  // --- Resource Handlers ---
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    return { resources };
-  });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
     return readResource(uri);
   });
 
-  // --- Transport ---
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-
-  console.error(`${SERVER_NAME} v${SERVER_VERSION} started`);
+  return server;
 }
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+async function startStdio(): Promise<void> {
+  const server = createServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION} started\n`);
+}
+
+async function startHttp(): Promise<void> {
+  const { StreamableHTTPServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/streamableHttp.js"
+  );
+
+  const port = parseInt(process.env.MCP_PORT ?? "3000", 10);
+
+  // Stateless mode: each POST is handled independently; no session tracking needed.
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  const server = createServer();
+  await server.connect(transport);
+
+  const httpServer = http.createServer(async (req, res) => {
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+
+    if (pathname === "/mcp") {
+      if (req.method === "POST") {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", async () => {
+          try {
+            const body = Buffer.concat(chunks).toString();
+            const parsed = body ? JSON.parse(body) : undefined;
+            await transport.handleRequest(req, res, parsed);
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON body" }));
+          }
+        });
+      } else if (req.method === "GET" || req.method === "DELETE") {
+        await transport.handleRequest(req, res);
+      } else {
+        res.writeHead(405);
+        res.end("Method Not Allowed");
+      }
+    } else if (pathname === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+    } else {
+      res.writeHead(404);
+      res.end("Not Found");
+    }
+  });
+
+  httpServer.listen(port, () => {
+    process.stderr.write(`${SERVER_NAME} v${SERVER_VERSION} started on port ${port}\n`);
+  });
+}
+
+const mode = process.env.MCP_TRANSPORT ?? "stdio";
+
+if (mode === "http") {
+  startHttp().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
+} else {
+  startStdio().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
+}

@@ -10,11 +10,26 @@ import {
 } from "./deployments.js";
 import { listServicesTool, handleListServices } from "./services.js";
 import { execInPodTool, handleExecInPod } from "./exec.js";
+import {
+  listResourcesTool,
+  handleListResources,
+  getResourceTool,
+  handleGetResource,
+  createResourceTool,
+  handleCreateResource,
+  updateResourceTool,
+  handleUpdateResource,
+  patchResourceTool,
+  handlePatchResource,
+  deleteResourceTool,
+  handleDeleteResource,
+} from "./resources.js";
 
 /**
  * All tools exposed by this MCP server.
  */
 export const tools: Tool[] = [
+  // Specific convenience tools
   listNamespacesTool,
   listPodsTool,
   getPodLogsTool,
@@ -22,6 +37,13 @@ export const tools: Tool[] = [
   listDeploymentsTool,
   scaleDeploymentTool,
   listServicesTool,
+  // Generic CRUD tools (cover all resource types)
+  listResourcesTool,
+  getResourceTool,
+  createResourceTool,
+  updateResourceTool,
+  patchResourceTool,
+  deleteResourceTool,
 ];
 
 /**
@@ -46,6 +68,18 @@ export async function handleToolCall(
       return handleScaleDeployment(args);
     case "list_services":
       return handleListServices(args);
+    case "list_resources":
+      return handleListResources(args);
+    case "get_resource":
+      return handleGetResource(args);
+    case "create_resource":
+      return handleCreateResource(args);
+    case "update_resource":
+      return handleUpdateResource(args);
+    case "patch_resource":
+      return handlePatchResource(args);
+    case "delete_resource":
+      return handleDeleteResource(args);
     default:
       return {
         isError: true,

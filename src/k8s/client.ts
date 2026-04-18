@@ -31,3 +31,6 @@ export const coreV1Api = kubeConfig.makeApiClient(k8s.CoreV1Api);
 
 /** Apps API – Deployments, ReplicaSets, StatefulSets, … */
 export const appsV1Api = kubeConfig.makeApiClient(k8s.AppsV1Api);
+
+/** Generic dynamic client – supports any resource type via discovery */
+export const objectApi = k8s.KubernetesObjectApi.makeApiClient(kubeConfig);

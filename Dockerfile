@@ -53,6 +53,11 @@ COPY --chown=mcp:mcp package.json ./
 USER mcp
 
 ENV NODE_ENV=production
+# Default to stdio transport; set MCP_TRANSPORT=http for network deployments.
+ENV MCP_TRANSPORT=stdio
+ENV MCP_PORT=3000
 
-# MCP communicates over stdio – no port is exposed.
+# Port 3000 is used when MCP_TRANSPORT=http.
+EXPOSE 3000
+
 ENTRYPOINT ["node", "dist/index.js"]
