@@ -12,7 +12,8 @@ export const listNamespacesTool: Tool = {
 
 export async function handleListNamespaces(): Promise<CallToolResult> {
   const res = await coreV1Api.listNamespace();
-  const namespaces = res.items.map((ns) => ({
+
+  const namespaces = res.body.items.map((ns) => ({
     name: ns.metadata?.name,
     status: ns.status?.phase,
     createdAt: ns.metadata?.creationTimestamp,
@@ -20,11 +21,6 @@ export async function handleListNamespaces(): Promise<CallToolResult> {
   }));
 
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(namespaces, null, 2),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(namespaces, null, 2) }],
   };
 }

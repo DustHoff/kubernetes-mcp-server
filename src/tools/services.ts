@@ -30,6 +30,9 @@ export async function handleListServices(
 ): Promise<CallToolResult> {
   const { namespace, labelSelector } = ListServicesArgsSchema.parse(args);
 
+  // v0.x positional params:
+  // listNamespacedService(namespace, pretty, allowWatchBookmarks, _continue,
+  //                       fieldSelector, labelSelector, ...)
   const res = await coreV1Api.listNamespacedService(
     namespace,
     undefined,
@@ -39,7 +42,7 @@ export async function handleListServices(
     labelSelector
   );
 
-  const services = res.items.map((svc) => ({
+  const services = res.body.items.map((svc) => ({
     name: svc.metadata?.name,
     namespace: svc.metadata?.namespace,
     type: svc.spec?.type,
@@ -56,11 +59,6 @@ export async function handleListServices(
   }));
 
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(services, null, 2),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(services, null, 2) }],
   };
 }

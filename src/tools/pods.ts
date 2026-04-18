@@ -32,6 +32,9 @@ export async function handleListPods(
 ): Promise<CallToolResult> {
   const { namespace, labelSelector } = ListPodsArgsSchema.parse(args);
 
+  // v0.x positional params:
+  // listNamespacedPod(namespace, pretty, allowWatchBookmarks, _continue,
+  //                   fieldSelector, labelSelector, ...)
   const res = await coreV1Api.listNamespacedPod(
     namespace,
     undefined,
@@ -41,7 +44,7 @@ export async function handleListPods(
     labelSelector
   );
 
-  const pods = res.items.map((pod) => ({
+  const pods = res.body.items.map((pod) => ({
     name: pod.metadata?.name,
     namespace: pod.metadata?.namespace,
     phase: pod.status?.phase,
@@ -53,12 +56,7 @@ export async function handleListPods(
   }));
 
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(pods, null, 2),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(pods, null, 2) }],
   };
 }
 
@@ -94,11 +92,13 @@ export const getPodLogsTool: Tool = {
       },
       tailLines: {
         type: "number",
-        description: "Number of lines to return from the end of the log (default: 100)",
+        description:
+          "Number of lines to return from the end of the log (default: 100)",
       },
       previous: {
         type: "boolean",
-        description: "Return logs from a previously terminated container instance",
+        description:
+          "Return logs from a previously terminated container instance",
       },
     },
   },
@@ -110,7 +110,10 @@ export async function handleGetPodLogs(
   const { name, namespace, container, tailLines, previous } =
     GetPodLogsArgsSchema.parse(args);
 
-  const logs = await coreV1Api.readNamespacedPodLog(
+  // v0.x positional params:
+  // readNamespacedPodLog(name, namespace, container, follow, insecureSkipTLSVerifyBackend,
+  //                      limitBytes, pretty, previous, sinceSeconds, tailLines, timestamps)
+  const res = await coreV1Api.readNamespacedPodLog(
     name,
     namespace,
     container,
@@ -124,11 +127,6 @@ export async function handleGetPodLogs(
   );
 
   return {
-    content: [
-      {
-        type: "text",
-        text: typeof logs === "string" ? logs : JSON.stringify(logs),
-      },
-    ],
+    content: [{ type: "text", text: res.body }],
   };
 }

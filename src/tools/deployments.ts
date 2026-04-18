@@ -32,6 +32,9 @@ export async function handleListDeployments(
 ): Promise<CallToolResult> {
   const { namespace, labelSelector } = ListDeploymentsArgsSchema.parse(args);
 
+  // v0.x positional params:
+  // listNamespacedDeployment(namespace, pretty, allowWatchBookmarks, _continue,
+  //                          fieldSelector, labelSelector, ...)
   const res = await appsV1Api.listNamespacedDeployment(
     namespace,
     undefined,
@@ -41,7 +44,7 @@ export async function handleListDeployments(
     labelSelector
   );
 
-  const deployments = res.items.map((d) => ({
+  const deployments = res.body.items.map((d) => ({
     name: d.metadata?.name,
     namespace: d.metadata?.namespace,
     replicas: d.spec?.replicas,
@@ -54,12 +57,7 @@ export async function handleListDeployments(
   }));
 
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(deployments, null, 2),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(deployments, null, 2) }],
   };
 }
 
@@ -99,11 +97,12 @@ export async function handleScaleDeployment(
 ): Promise<CallToolResult> {
   const { name, namespace, replicas } = ScaleDeploymentArgsSchema.parse(args);
 
+  // v0.x: patchNamespacedDeploymentScale(name, namespace, body,
+  //          pretty, dryRun, fieldManager, force, options)
   await appsV1Api.patchNamespacedDeploymentScale(
     name,
     namespace,
     { spec: { replicas } },
-    undefined,
     undefined,
     undefined,
     undefined,
