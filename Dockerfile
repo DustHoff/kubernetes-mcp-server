@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install dependencies first (layer cache)
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source and compile TypeScript
 COPY tsconfig.json ./
@@ -15,7 +15,7 @@ COPY src/ ./src/
 RUN npm run build
 
 # Prune to production-only dependencies
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # ─────────────────────────────────────────────
 # Stage 2: Production
