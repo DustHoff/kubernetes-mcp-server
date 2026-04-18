@@ -50,6 +50,7 @@ async function startStdio(): Promise<void> {
 }
 
 function startAccessLog(req: http.IncomingMessage, res: http.ServerResponse): void {
+  if (!accessLogEnabled) return;
   const startMs = Date.now();
   const url = new URL(req.url ?? "/", "http://localhost");
   const query = Object.fromEntries(url.searchParams);
@@ -149,6 +150,10 @@ async function startHttp(): Promise<void> {
     void runSelfCheck();
   });
 }
+
+const accessLogEnabled =
+  process.env.ACCESS_LOG === undefined ||
+  (process.env.ACCESS_LOG.toLowerCase() !== "false" && process.env.ACCESS_LOG !== "0");
 
 const mode = process.env.MCP_TRANSPORT ?? "stdio";
 

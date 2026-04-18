@@ -58,6 +58,57 @@ For **local development**, the server falls back to `~/.kube/config`.
 
 ---
 
+## Configuration
+
+All behaviour is controlled via environment variables. Variables marked **set by cluster** are injected automatically by Kubernetes and must not be set manually.
+
+### Transport
+
+| Variable | Default | Allowed values | Description |
+|---|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | `stdio`, `http` | Transport mode. `stdio` is the standard MCP transport for use with LLM clients that launch the server as a subprocess. `http` starts an HTTP server that exposes `/mcp` (MCP protocol) and `/health`. |
+| `MCP_PORT` | `3000` | Any valid port number | TCP port the HTTP server listens on. Only used when `MCP_TRANSPORT=http`. |
+
+### Logging
+
+| Variable | Default | Allowed values | Description |
+|---|---|---|---|
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN`, `ERROR` | Minimum severity for structured JSON log output on stderr. `DEBUG` additionally logs per-request details (headers, query parameters, request body) and per-tool-call traces. `WARN` and `ERROR` reduce output to warnings and failures only. |
+| `ACCESS_LOG` | `true` | `true`, `false`, `0` | Controls HTTP access logging. When enabled, every HTTP request is logged at INFO level with method, path, response status, and duration in milliseconds. Set to `false` or `0` to disable. Has no effect in `stdio` mode. |
+
+### Kubernetes (set by cluster)
+
+| Variable | Set by | Description |
+|---|---|---|
+| `KUBERNETES_SERVICE_HOST` | Kubernetes | IP address of the Kubernetes API server. Automatically injected into every pod. When present, the server loads in-cluster credentials via `loadFromCluster()`. |
+| `KUBERNETES_SERVICE_PORT` | Kubernetes | Port of the Kubernetes API server (typically `443`). Automatically injected alongside `KUBERNETES_SERVICE_HOST`. |
+
+For **local development** neither variable is set, so the server falls back to `~/.kube/config`.
+
+### Example: HTTP mode with debug logging
+
+```bash
+MCP_TRANSPORT=http \
+MCP_PORT=8080 \
+LOG_LEVEL=DEBUG \
+npm start
+```
+
+### Example: disable access log in production
+
+```yaml
+# Kubernetes Deployment env section
+env:
+  - name: MCP_TRANSPORT
+    value: http
+  - name: LOG_LEVEL
+    value: WARN
+  - name: ACCESS_LOG
+    value: "false"
+```
+
+---
+
 ## Kubernetes Setup
 
 ### 1. Service Account & RBAC
@@ -212,16 +263,19 @@ git push origin v1.0.0
 
 ```
 src/
-├── index.ts              # MCP server entry point
+├── index.ts              # MCP server entry point, HTTP access logging
+├── logger.ts             # Structured JSON logger (stderr, LOG_LEVEL)
 ├── k8s/
-│   └── client.ts         # Kubernetes API client (in-cluster / kubeconfig)
+│   ├── client.ts         # Kubernetes API client (in-cluster / kubeconfig)
+│   └── selfcheck.ts      # Startup self-check (endpoint, credentials, API)
 ├── tools/
 │   ├── index.ts          # Tool registry & dispatcher
 │   ├── namespaces.ts     # list_namespaces
 │   ├── pods.ts           # list_pods, get_pod_logs
 │   ├── exec.ts           # exec_in_pod
 │   ├── deployments.ts    # list_deployments, scale_deployment
-│   └── services.ts       # list_services
+│   ├── services.ts       # list_services
+│   └── resources.ts      # Generic CRUD tools (list/get/create/update/patch/delete)
 └── resources/
     └── index.ts          # MCP resource registry
 ```
