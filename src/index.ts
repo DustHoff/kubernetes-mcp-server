@@ -78,50 +78,6 @@ function startAccessLog(req: http.IncomingMessage, res: http.ServerResponse): vo
   });
 }
 
-async function handleHttpRequest(
-  transport: { handleRequest(req: http.IncomingMessage, res: http.ServerResponse, body?: unknown): Promise<void> },
-  req: http.IncomingMessage,
-  res: http.ServerResponse
-): Promise<void> {
-  startAccessLog(req, res);
-  const url = new URL(req.url ?? "/", "http://localhost");
-
-  if (url.pathname === "/mcp") {
-    if (req.method === "POST") {
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        req.on("data", (chunk: Buffer) => chunks.push(chunk));
-        req.on("end", resolve);
-        req.on("error", reject);
-      });
-      const rawBody = Buffer.concat(chunks).toString();
-
-      let parsed: unknown;
-      try {
-        parsed = rawBody ? JSON.parse(rawBody) : undefined;
-      } catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid JSON body" }));
-        return;
-      }
-
-      logger.debug("http request body", { path: url.pathname, body: parsed });
-
-      await transport.handleRequest(req, res, parsed);
-    } else if (req.method === "GET" || req.method === "DELETE") {
-      await transport.handleRequest(req, res);
-    } else {
-      res.writeHead(405);
-      res.end("Method Not Allowed");
-    }
-  } else if (url.pathname === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok" }));
-  } else {
-    res.writeHead(404);
-    res.end("Not Found");
-  }
-}
 
 async function startHttp(): Promise<void> {
   const { StreamableHTTPServerTransport } = await import(
@@ -130,18 +86,80 @@ async function startHttp(): Promise<void> {
 
   const port = parseInt(process.env.MCP_PORT ?? "3000", 10);
 
-  // Session tracking: each initialize request gets a unique session ID, required for SSE streaming.
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
-  const server = createServer();
-  await server.connect(transport);
+  type SessionEntry = { transport: InstanceType<typeof StreamableHTTPServerTransport> };
+  const sessions = new Map<string, SessionEntry>();
+
+  async function getOrCreateTransport(
+    req: http.IncomingMessage
+  ): Promise<InstanceType<typeof StreamableHTTPServerTransport>> {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    if (sessionId) {
+      const session = sessions.get(sessionId);
+      if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
+      return session.transport;
+    }
+
+    // New session: create a dedicated server + transport pair.
+    const newId = randomUUID();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => newId });
+    const server = createServer();
+    transport.onclose = () => {
+      sessions.delete(newId);
+      logger.info("mcp session closed", { sessionId: newId });
+    };
+    await server.connect(transport);
+    sessions.set(newId, { transport });
+    logger.info("mcp session created", { sessionId: newId });
+    return transport;
+  }
 
   const httpServer = http.createServer((req, res) => {
-    handleHttpRequest(transport, req, res).catch((err: unknown) => {
+    (async () => {
+      startAccessLog(req, res);
+      const url = new URL(req.url ?? "/", "http://localhost");
+
+      if (url.pathname === "/mcp") {
+        if (req.method === "POST") {
+          const chunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            req.on("data", (chunk: Buffer) => chunks.push(chunk));
+            req.on("end", resolve);
+            req.on("error", reject);
+          });
+          const rawBody = Buffer.concat(chunks).toString();
+          let parsed: unknown;
+          try {
+            parsed = rawBody ? JSON.parse(rawBody) : undefined;
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON body" }));
+            return;
+          }
+          logger.debug("http request body", { path: url.pathname, body: parsed });
+          const transport = await getOrCreateTransport(req);
+          await transport.handleRequest(req, res, parsed);
+        } else if (req.method === "GET" || req.method === "DELETE") {
+          const transport = await getOrCreateTransport(req);
+          await transport.handleRequest(req, res);
+        } else {
+          res.writeHead(405);
+          res.end("Method Not Allowed");
+        }
+      } else if (url.pathname === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+      } else {
+        res.writeHead(404);
+        res.end("Not Found");
+      }
+    })().catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
+      const statusCode = (err as { statusCode?: number }).statusCode;
       logger.error("unhandled error in request handler", { method: req.method, url: req.url, error: message });
       if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Internal server error" }));
+        res.writeHead(statusCode ?? 500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: message }));
       }
     });
   });
