@@ -232,11 +232,16 @@ export async function handlePatchResource(
   const { kind, apiVersion, name, namespace, patch } =
     PatchResourceArgsSchema.parse(args);
 
+  const patchData = JSON.parse(patch) as Record<string, unknown>;
   const spec = {
     apiVersion,
     kind,
-    metadata: { name, namespace: namespace ?? "" },
-    ...JSON.parse(patch),
+    ...patchData,
+    metadata: {
+      ...(patchData.metadata as Record<string, unknown> | undefined),
+      name,
+      namespace: namespace ?? "",
+    },
   };
 
   const res = await k8sAudit(
