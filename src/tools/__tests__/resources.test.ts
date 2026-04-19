@@ -220,6 +220,26 @@ describe("handlePatchResource", () => {
     );
   });
 
+  it("preserves name and namespace when patch contains a metadata field", async () => {
+    mockPatch.mockResolvedValueOnce({ body: {} } as any);
+
+    await handlePatchResource({
+      kind: "Deployment",
+      apiVersion: "apps/v1",
+      name: "my-deploy",
+      namespace: "default",
+      patch: JSON.stringify({ metadata: { labels: { env: "prod" } } }),
+    });
+
+    expect(mockPatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ name: "my-deploy", namespace: "default", labels: { env: "prod" } }),
+      }),
+      undefined, undefined, "kubernetes-mcp", undefined,
+      { headers: { "Content-Type": "application/merge-patch+json" } }
+    );
+  });
+
   it("requires kind, apiVersion, name, and patch", async () => {
     await expect(
       handlePatchResource({ kind: "Deployment", apiVersion: "apps/v1" })
